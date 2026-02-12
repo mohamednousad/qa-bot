@@ -54,4 +54,8 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.send('My QA Bot is running and waiting for GitHub webhooks!');
+});
+
 app.listen(3000, () => console.log('Bot running on port 3000'));
