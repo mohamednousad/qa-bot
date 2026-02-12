@@ -1,21 +1,34 @@
 /**
- * This is the main entrypoint to your Probot app
- * @param {import('probot').Probot} app
+ * A Zero-Dependency QA Bot
  */
-export default (app) => {
-  // Your code here
-  app.log.info("Yay, the app was loaded!");
+module.exports = (app) => {
+  app.on(["pull_request.opened", "pull_request.synchronize"], async (context) => {
+    const pr = context.payload.pull_request;
 
-  app.on("issues.opened", async (context) => {
-    const issueComment = context.issue({
-      body: "Thanks for opening this issue!",
+    // 1. Tell GitHub: "I am starting my check!"
+    const checkRun = await context.octokit.checks.create({
+      owner: context.repo().owner,
+      repo: context.repo().repo,
+      name: "Basic QA Check",
+      head_sha: pr.head.sha,
+      status: "in_progress",
     });
-    return context.octokit.issues.createComment(issueComment);
+
+    // 2. Our simple rule: The PR title cannot contain "WIP"
+    const isWip = pr.title.toUpperCase().includes("WIP");
+    const passed = !isWip;
+
+    // 3. Tell GitHub the final result (Green Check ✅ or Red Cross ❌)
+    await context.octokit.checks.update({
+      owner: context.repo().owner,
+      repo: context.repo().repo,
+      check_run_id: checkRun.data.id,
+      status: "completed",
+      conclusion: passed ? "success" : "failure",
+      output: {
+        title: passed ? "All Good!" : "PR is not ready",
+        summary: passed ? "No 'WIP' in title. Ready to review." : "Please remove 'WIP' from the PR title."
+      }
+    });
   });
-
-  // For more information on building apps:
-  // https://probot.github.io/docs/
-
-  // To get your app running against GitHub, see:
-  // https://probot.github.io/docs/development/
 };
