@@ -1,6 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import 'dotenv/config'; // Automatically loads the .env file
+import 'dotenv/config'; 
 
 const app = express();
 app.use(express.json());
@@ -13,14 +13,12 @@ app.post('/webhook', async (req, res) => {
   if (action !== 'opened' && action !== 'synchronize') return res.status(200).send('Ignored');
 
   try {
-    // 1. Authenticate as the GitHub App (Generate JWT)
     const appJwt = jwt.sign({
       iat: Math.floor(Date.now() / 1000) - 60,
       exp: Math.floor(Date.now() / 1000) + (10 * 60),
       iss: process.env.APP_ID
     }, process.env.PRIVATE_KEY.replace(/\\n/g, '\n'), { algorithm: 'RS256' });
 
-    // 2. Get Permission to edit this specific repository
     const tokenRes = await fetch(`https://api.github.com/app/installations/${installation.id}/access_tokens`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${appJwt}`, Accept: 'application/vnd.github.v3+json' }
@@ -28,8 +26,7 @@ app.post('/webhook', async (req, res) => {
     
     const { token: accessToken } = await tokenRes.json();
 
-    // 3. Post the Result to GitHub (Green Check / Red Cross)
-    const passed = !pull_request.title.includes('WIP'); // Simple rule for testing
+    const passed = !pull_request.title.includes('WIP'); 
     
     await fetch(`https://api.github.com/repos/${repository.full_name}/check-runs`, {
       method: 'POST',
@@ -57,5 +54,12 @@ app.post('/webhook', async (req, res) => {
 app.get('/', (req, res) => {
   res.send('My QA Bot is running and waiting for GitHub webhooks!');
 });
+
+// Environment variable check
+if (process.env.APP_ID && process.env.PRIVATE_KEY) {
+  console.log('✅ Credentials loaded: APP_ID and PRIVATE_KEY are present.');
+} else {
+  console.log('❌ Error: Missing APP_ID or PRIVATE_KEY in .env file!');
+}
 
 app.listen(3000, () => console.log('Bot running on port 3000'));
