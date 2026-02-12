@@ -1,29 +1,22 @@
 {
-  "name": "qa-bot",
+  "name": "server",
   "version": "1.0.0",
-  "private": true,
-  "description": "A Probot app",
-  "author": "mohamed-nousad",
+  "description": "",
   "license": "ISC",
-  "homepage": "https://github.com//",
-  "keywords": [
-    "probot",
-    "github",
-    "probot-app"
-  ],
+  "author": "",
+  "type": "module",
+  "main": "index.js",
   "scripts": {
-    "start": "probot run ./index.js",
-    "test": "node --test"
+    "start": "node __.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "probot": "^13.0.1"
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1"
   },
   "devDependencies": {
-    "nock": "^14.0.0-beta.5",
-    "smee-client": "^2.0.0"
-  },
-  "engines": {
-    "node": ">= 18"
-  },
-  "type": "module"
+    "nodemon": "^3.1.11"
+  }
 }

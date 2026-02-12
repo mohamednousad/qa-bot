@@ -1,34 +1,57 @@
-/**
- * A Zero-Dependency QA Bot
- */
-module.exports = (app) => {
-  app.on(["pull_request.opened", "pull_request.synchronize"], async (context) => {
-    const pr = context.payload.pull_request;
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import 'dotenv/config'; // Automatically loads the .env file
 
-    // 1. Tell GitHub: "I am starting my check!"
-    const checkRun = await context.octokit.checks.create({
-      owner: context.repo().owner,
-      repo: context.repo().repo,
-      name: "Basic QA Check",
-      head_sha: pr.head.sha,
-      status: "in_progress",
+const app = express();
+app.use(express.json());
+
+app.post('/webhook', async (req, res) => {
+  const event = req.headers['x-github-event'];
+  if (event !== 'pull_request') return res.status(200).send('Ignored');
+
+  const { action, pull_request, installation, repository } = req.body;
+  if (action !== 'opened' && action !== 'synchronize') return res.status(200).send('Ignored');
+
+  try {
+    // 1. Authenticate as the GitHub App (Generate JWT)
+    const appJwt = jwt.sign({
+      iat: Math.floor(Date.now() / 1000) - 60,
+      exp: Math.floor(Date.now() / 1000) + (10 * 60),
+      iss: process.env.APP_ID
+    }, process.env.PRIVATE_KEY.replace(/\\n/g, '\n'), { algorithm: 'RS256' });
+
+    // 2. Get Permission to edit this specific repository
+    const tokenRes = await fetch(`https://api.github.com/app/installations/${installation.id}/access_tokens`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${appJwt}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    
+    const { token: accessToken } = await tokenRes.json();
+
+    // 3. Post the Result to GitHub (Green Check / Red Cross)
+    const passed = !pull_request.title.includes('WIP'); // Simple rule for testing
+    
+    await fetch(`https://api.github.com/repos/${repository.full_name}/check-runs`, {
+      method: 'POST',
+      headers: { 
+        Authorization: `Bearer ${accessToken}`, 
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: 'Custom Node QA',
+        head_sha: pull_request.head.sha,
+        status: 'completed',
+        conclusion: passed ? 'success' : 'failure',
+        output: { title: passed ? 'Code Good' : 'WIP Found', summary: 'Tested with ES6 Imports' }
+      })
     });
 
-    // 2. Our simple rule: The PR title cannot contain "WIP"
-    const isWip = pr.title.toUpperCase().includes("WIP");
-    const passed = !isWip;
+    res.status(200).send('Check sent!');
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server Error');
+  }
+});
 
-    // 3. Tell GitHub the final result (Green Check ✅ or Red Cross ❌)
-    await context.octokit.checks.update({
-      owner: context.repo().owner,
-      repo: context.repo().repo,
-      check_run_id: checkRun.data.id,
-      status: "completed",
-      conclusion: passed ? "success" : "failure",
-      output: {
-        title: passed ? "All Good!" : "PR is not ready",
-        summary: passed ? "No 'WIP' in title. Ready to review." : "Please remove 'WIP' from the PR title."
-      }
-    });
-  });
-};
+app.listen(3000, () => console.log('Bot running on port 3000'));
